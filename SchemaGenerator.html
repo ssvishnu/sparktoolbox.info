@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Spark Schema Generator</title>
+  <style>
+    :root {
+      --bg-light: #f0f0f0;
+      --text-light: #1e1e2f;
+      --bg-dark: #1e1e2f;
+      --text-dark: #f0f0f0;
+      --accent: #00c3ff;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-dark);
+      padding: 40px;
+      max-width: 900px;
+      margin: auto;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    body.light-mode {
+      background-color: var(--bg-light);
+      color: var(--text-light);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: var(--accent);
+    }
+
+    input[type="file"] {
+      display: block;
+      margin: 0 auto 20px auto;
+      padding: 10px;
+      border-radius: 6px;
+      background-color: #2d2d40;
+      color: #ddd;
+      border: 1px solid #444;
+      cursor: pointer;
+    }
+
+    .buttons {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .btn {
+      background-color: var(--accent);
+      color: #1e1e2f;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 5px;
+      transition: background 0.2s ease;
+    }
+
+    .btn:hover {
+      background-color: #00a8d1;
+    }
+
+    textarea {
+      width: 100%;
+      height: 300px;
+      padding: 15px;
+      border-radius: 8px;
+      background-color: #2d2d40;
+      color: #e2e2e2;
+      font-family: 'Fira Code', monospace;
+      font-size: 14px;
+      border: 1px solid #444;
+      box-sizing: border-box;
+    }
+
+    .preview {
+      background: #2d2d40;
+      color: #ccc;
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 20px;
+      white-space: pre-wrap;
+      font-family: monospace;
+    }
+
+    select {
+      background-color: #2d2d40;
+      color: #ddd;
+      padding: 10px 16px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      cursor: pointer;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 20px; }
+      textarea { height: 250px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>🔥 Spark Schema Generator</h1>
+
+  <div class="buttons">
+    <button class="btn" onclick="toggleTheme()">Toggle Light/Dark Mode</button>
+    <button class="btn" onclick="clearAll()">Clear</button>
+  </div>
+
+  <input type="file" id="fileInput" accept=".csv,.json" />
+
+  <div class="buttons">
+    <label for="schemaFormat" style="color: var(--accent); margin-right: 10px;">Select Schema Format:</label>
+    <select id="schemaFormat" onchange="changeFormat()">
+      <option value="pyspark">PySpark</option>
+      <option value="scala">Scala</option>
+      <option value="df-dsl">DataFrame DSL</option>
+    </select>
+    <button class="btn" onclick="downloadSchema()">Download</button>
+  </div>
+
+  <textarea id="output" placeholder="Edit schema here before downloading..."></textarea>
+
+  <div class="preview" id="previewBox">Structure preview will appear here...</div>
+
+  <script>
+    let currentSchemaText = '';
+    let currentFormat = 'pyspark';
+    let jsonData = [];
+
+    function toggleTheme() {
+      document.body.classList.toggle('light-mode');
+    }
+
+    function clearAll() {
+      document.getElementById('fileInput').value = null;
+      document.getElementById('output').value = '';
+      document.getElementById('previewBox').textContent = 'Structure preview will appear here...';
+      jsonData = [];
+    }
+
+    document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+
+    function detectType(value) {
+      if (value === null || value === undefined) return 'NullType';
+      if (typeof value === 'boolean') return 'BooleanType';
+      if (typeof value === 'number') {
+        if (Number.isInteger(value)) {
+          if (value >= -128 && value <= 127) return 'ByteType';
+          if (value >= -32768 && value <= 32767) return 'ShortType';
+          if (value >= -2147483648 && value <= 2147483647) return 'IntegerType';
+          if (value >= -9223372036854775808 && value <= 9223372036854775807) return 'LongType';
+          return 'DecimalType(38, 18)';
+        }
+        return 'DoubleType';
+      }
+      if (typeof value === 'string') {
+        if (!isNaN(Date.parse(value))) {
+          const hasTime = /[Tt:\d]{2}:\d{2}/.test(value);
+          return hasTime ? 'TimestampType' : 'DateType';
+        }
+        return 'StringType';
+      }
+      if (Array.isArray(value)) return 'ArrayType';
+      if (typeof value === 'object') return 'StructType';
+      return 'StringType';
+    }
+
+    function inferField(key, value, format) {
+      const dataType = detectType(value);
+      switch (dataType) {
+        case 'StructType':
+          const structFields = Object.entries(value).map(([k, v]) => inferField(k, v, format));
+          return formatStructField(key, `StructType([\n    ${structFields.join(',\n    ')}\n  ])`, format);
+        case 'ArrayType':
+          const firstItem = value[0];
+          const arrayType = firstItem ? detectType(firstItem) : 'StringType';
+          if (arrayType === 'StructType') {
+            const nestedStruct = inferField('', firstItem, format).replace(/.*StructType\(/, 'StructType(');
+            return formatStructField(key, `ArrayType(\n    ${nestedStruct}, true\n  )`, format);
+          }
+          return formatStructField(key, `ArrayType(${arrayType}(), true)`, format);
+        case 'MapType':
+          return formatStructField(key, 'MapType(StringType(), StringType(), true)', format);
+        default:
+          return formatStructField(key, `${dataType}()`, format);
+      }
+    }
+
+    function formatStructField(key, typeStr, format) {
+      return format === 'pyspark'
+        ? `StructField("${key}", ${typeStr}, True)`
+        : format === 'scala'
+        ? `StructField("${key}", ${typeStr}, true)`
+        : `df.col("${key}").cast(${typeStr})`;
+    }
+
+    function inferSchema(data, format) {
+      const sample = data[0];
+      const fields = Object.entries(sample).map(([key, value]) => inferField(key, value, format));
+      return format === 'pyspark'
+        ? `from pyspark.sql.types import *\n\nschema = StructType([\n  ${fields.join(',\n  ')}\n])`
+        : format === 'scala'
+        ? `import org.apache.spark.sql.types._\n\nval schema = StructType(Array(\n  ${fields.join(',\n  ')}\n))`
+        : `val schema = ${fields.join(';\n  ')};`;
+    }
+
+    function previewStructure(data) {
+      const sample = data[0];
+      document.getElementById('previewBox').textContent = JSON.stringify(sample, null, 2);
+    }
+
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      const reader = new FileReader();
+      const ext = file.name.split('.').pop().toLowerCase();
+
+      reader.onload = function(e) {
+        try {
+          if (ext === 'json') {
+            const raw = JSON.parse(e.target.result);
+            jsonData = Array.isArray(raw) ? raw : [raw];
+          } else if (ext === 'csv') {
+            const lines = e.target.result.split('\n').map(l => l.trim()).filter(l => l);
+            const headers = lines[0].split(',');
+            jsonData = lines.slice(1).map(line => {
+              const values = line.split(',');
+              const obj = {};
+              headers.forEach((h, i) => obj[h] = values[i]);
+              return obj;
+            });
+          }
+          previewStructure(jsonData);
+          generateSchema();
+        } catch (err) {
+          document.getElementById('previewBox').textContent = 'Error parsing file: ' + err.message;
+        }
+      };
+
+      reader.readAsText(file);
+    }
+
+    function generateSchema() {
+      if (!jsonData.length) {
+        document.getElementById('output').value = 'Please upload a valid file first.';
+        return;
+      }
+      currentSchemaText = inferSchema(jsonData, currentFormat);
+      document.getElementById('output').value = currentSchemaText;
+    }
+
+    function downloadSchema() {
+      const editedText = document.getElementById('output').value;
+      const blob = new Blob([editedText], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `spark_schema.${currentFormat === 'pyspark' ? 'py' : currentFormat === 'scala' ? 'scala' : 'txt'}`;
+      a.click();
+    }
+
+    function changeFormat() {
+      currentFormat = document.getElementById('schemaFormat').value;
+      generateSchema();
+    }
+  </script>
+</body>
+</html>

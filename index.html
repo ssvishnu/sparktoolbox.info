@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Data Ecosystem Tools</title>
+  <style>
+    :root {
+      --bg-light: #f0f0f0;
+      --text-light: #1e1e2f;
+      --bg-dark: #1e1e2f;
+      --text-dark: #f0f0f0;
+      --accent: #00c3ff;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-dark);
+      padding: 40px;
+      max-width: 1000px;
+      margin: auto;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    body.light-mode {
+      background-color: var(--bg-light);
+      color: var(--text-light);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: var(--accent);
+    }
+
+    .tool-container {
+      margin-bottom: 40px;
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 20px;
+      background-color: #2d2d40;
+    }
+
+    .tool-container h2 {
+      color: var(--accent);
+      margin-bottom: 15px;
+    }
+
+    .tool-link {
+      font-size: 18px;
+      font-weight: bold;
+      color: var(--accent);
+      text-decoration: none;
+      display: inline-block;
+      margin-top: 10px;
+    }
+
+    .buttons {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .btn {
+      background-color: var(--accent);
+      color: #1e1e2f;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 5px;
+      transition: background 0.2s ease;
+    }
+
+    .btn:hover {
+      background-color: #00a8d1;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>🔥 Data Ecosystem Tools</h1>
+
+  <div class="buttons">
+    <button class="btn" onclick="toggleTheme()">Toggle Light/Dark Mode</button>
+  </div>
+
+  <!-- Spark Schema Webtool -->
+  <div class="tool-container" id="sparkSchemaWebtool">
+    <h2>Spark Schema Generator</h2>
+    <p>Generate Spark schemas for PySpark, Scala, or DataFrame DSL.</p>
+    <a href="SchemaGenerator.html" class="tool-link">Go to Spark Schema Generator</a>
+  </div>
+
+  <!-- Placeholder for future tools -->
+  <div class="tool-container" id="futureTool1">
+    <h2>Tool 1: Data Transformation Helper (Coming Soon)</h2>
+    <p>Help with common data transformation tasks using Spark.</p>
+    <a href="#" class="tool-link">Coming Soon</a>
+  </div>
+
+  <div class="tool-container" id="futureTool2">
+    <h2>Tool 2: Data Quality Checker (Coming Soon)</h2>
+    <p>Automate data quality checks for your Spark datasets.</p>
+    <a href="#" class="tool-link">Coming Soon</a>
+  </div>
+
+  <script>
+    function toggleTheme() {
+      document.body.classList.toggle('light-mode');
+    }
+  </script>
+</body>
+</html>
